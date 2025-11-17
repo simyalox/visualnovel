@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Когда исчезают друзья — визуальная новелла</title>
+<meta name="description" content="Интерактивная визуальная новелла — сценарий: 'Когда исчезают друзья'." />
+<style>
+:root{
+  --bg-filter: 0.92;
+  --panel: rgba(4,6,8,0.72);
+  --accent1:#ff8acb; --accent2:#6fd3ff;
+  --gold:#ffcc00; --text:#fff7d9;
+  --muted:#c7d0d6; --radius:14px;
+  --shadow: 0 10px 30px rgba(0,0,0,0.6);
+  --cps:30;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family: Inter, "Segoe UI", Roboto, system-ui, Arial, sans-serif;background:#000;color:var(--text);overflow:hidden}
+.app-bg{position:fixed;inset:0;background:#000 center/cover no-repeat fixed;transition:opacity .6s linear, filter .6s linear;z-index:0}
+.app-bg.hidden{opacity:0;pointer-events:none}
+.menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:60;background:linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.75));backdrop-filter: blur(4px)}
+.menu-card{width:min(920px,94%);padding:36px;border-radius:18px;background:linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.45));box-shadow:var(--shadow);text-align:center}
+.title{font-size:clamp(28px,5vw,44px);color:var(--gold);font-weight:900;letter-spacing:1px;text-shadow:0 8px 30px rgba(255,204,0,0.08)}
+.subtitle{color:var(--muted);margin-top:8px;font-style:italic}
+.menu-actions{display:flex;gap:12px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+.btn{padding:12px 28px;border-radius:12px;border:none;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--accent1),var(--accent2));color:#07121a;box-shadow:0 12px 28px rgba(0,0,0,0.6);transition:transform .16s}
+.btn:active{transform:translateY(1px)}
+.controls{position:fixed;right:14px;top:12px;z-index:70;display:flex;gap:8px;flex-wrap:wrap}
+.ctrl{background:linear-gradient(90deg,#111,#0c0c0c);color:var(--text);padding:8px 12px;border-radius:10px;border:none;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,0.6)}
+.ctrl:active{transform:translateY(1px)}
+.container{position:relative;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;z-index:10;padding:18px}
+.panel{width:min(1100px,96%);background:var(--panel);backdrop-filter: blur(6px) saturate(1.05);padding:18px;border-radius:var(--radius);border:1px solid rgba(255,255,255,0.04);box-shadow:var(--shadow);pointer-events:auto}
+.speaker{font-weight:800;font-size:18px;color:#fff;margin-bottom:8px;min-height:22px}
+.text{min-height:86px;font-size:18px;line-height:1.6;color:var(--text);overflow:auto;padding-right:6px}
+.choices{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.choice-btn{padding:12px 16px;border-radius:12px;border:none;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--accent1),var(--accent2));color:#07121a;box-shadow:0 10px 26px rgba(0,0,0,0.55);text-align:left}
+.choice-btn:hover{transform:translateY(-4px)}
+.hint{font-size:13px;color:var(--muted);margin-top:10px}
+.screamer{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;background:#000;opacity:0;pointer-events:none;transition:opacity .08s linear}
+.screamer.show{opacity:1;pointer-events:auto}
+.end-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:130;background:linear-gradient(180deg,#000000cc,#000000ee);padding:18px;visibility:hidden;opacity:0;transition:opacity .2s,visibility .2s}
+.end-screen.show{visibility:visible;opacity:1}
+.end-card{background:linear-gradient(180deg,#07121a,#071827);padding:24px;border-radius:12px;max-width:860px;width:94%;text-align:center;box-shadow:0 30px 60px rgba(0,0,0,0.6)}
+.hint-flash{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:#111;padding:10px 14px;border-radius:10px;color:#fff;z-index:140;opacity:0;transition:all .18s}
+.hint-flash.show{opacity:1;transform:translateX(-50%) translateY(6px)}
+@media(max-width:720px){.text{font-size:16px}.panel{padding:14px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* preload hint */
+.preload-list{display:none}
+</style>
+</head>
+<body>
+
+<!-- Background image (dynamic) -->
+<div id="bg" class="app-bg" aria-hidden="true"></div>
+
+<!-- Menu -->
+<div id="menu" class="menu" role="dialog" aria-label="Главное меню">
+  <div class="menu-card">
+    <div class="title">My Visual Novel</div>
+    <div class="subtitle">«Когда исчезают друзья»</div>
+    <div class="menu-actions">
+      <button id="newGame" class="btn">Новая игра</button>
+      <button id="continueBtn" class="btn">Продолжить</button>
+      <button id="toCredits" class="btn">Кредиты</button>
+    </div>
+    <p class="hint" style="margin-top:12px">Клик — продолжить. Выборы влияют на концовку. Файлы должны лежать в images/ с именами из сценария.</p>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls" role="toolbar" aria-label="Панель управления">
+  <button id="speedBtn" class="ctrl" title="Скорость (x1/x2)">x1</button>
+  <button id="skipBtn" class="ctrl" title="Пропустить">Skip</button>
+  <button id="saveBtn" class="ctrl" title="Сохранить">Save</button>
+  <button id="loadBtn" class="ctrl" title="Загрузить">Load</button>
+  <button id="pauseBtn" class="ctrl" title="Пауза (Esc)">Pause</button>
+</div>
+
+<!-- Screamer overlay -->
+<div id="screamer" class="screamer" aria-hidden="true">
+  <img id="screamerImg" src="images/screamer.jpg" alt="Страшное изображение" style="width:100%;height:100%;object-fit:cover;">
+</div>
+
+<!-- End screen -->
+<div id="endScreen" class="end-screen" role="dialog" aria-hidden="true">
+  <div class="end-card" role="document">
+    <h2 id="endTitle">Концовка</h2>
+    <p id="endText" style="margin-top:12px"></p>
+    <div style="margin-top:18px">
+      <button id="backToMenu" class="btn">В меню</button>
+      <button id="replay" class="btn" style="margin-left:10px">Сыграть снова</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main game container -->
+<div class="container" id="game" aria-live="polite" aria-label="Игровая сцена" style="display:none">
+  <div class="panel" role="region" aria-label="Окно диалога">
+    <div id="speaker" class="speaker" aria-live="polite"></div>
+    <div id="text" class="text" tabindex="0" aria-live="polite"></div>
+    <div id="choices" class="choices" role="group" aria-label="Варианты выбора"></div>
+    <p class="hint" id="autoHint"></p>
+  </div>
+</div>
+
+<!-- Preload links (images used only from scenario) -->
+<div class="preload-list" aria-hidden="true">
+  <img src="images/PILA.jpg" alt="">
+  <img src="images/school_corridor_close.jpg" alt="">
+  <img src="images/school_corridor_close_Masha_phone.jpg" alt="">
+  <img src="images/school_corridor_close_Masha_smile.jpg" alt="">
+  <img src="images/school_corridor_Ani_smile.jpg" alt="">
+  <img src="images/school_corridor_Masha_think.jpg" alt="">
+  <img src="images/school_corridor_softlight.jpg" alt="">
+  <img src="images/classroom_morning.jpg" alt="">
+  <img src="images/classroom_Ani_sit.jpg" alt="">
+  <img src="images/classroom_Magamedik_enter.jpg" alt="">
+  <img src="images/classroom_Ani_surprise.jpg" alt="">
+  <img src="images/classroom_Magamedik_smile.jpg" alt="">
+  <img src="images/classroom_softblur.jpg" alt="">
+  <img src="images/classroom_window.jpg" alt="">
+  <img src="images/classroom_desk.jpg" alt="">
+  <img src="images/classroom_close.jpg" alt="">
+  <img src="images/classroom_teacher.jpg" alt="">
+  <img src="images/cafeteria_day.jpg" alt="">
+  <img src="images/cafeteria_Ani_friends.jpg" alt="">
+  <img src="images/cafeteria_Masha_far.jpg" alt="">
+  <img src="images/cafeteria_softfade.jpg" alt="">
+  <img src="images/school_yard_day.jpg" alt="">
+  <img src="images/school_courtyard_Masha_far.jpg" alt="">
+  <img src="images/school_evening_corridor.jpg" alt="">
+  <img src="images/school_evening_corridor_together.jpg" alt="">
+  <img src="images/school_evening_Anya_soft.jpg" alt="">
+  <img src="images/street_night.jpg" alt="">
+  <img src="images/street_night_Anya_phone.jpg" alt="">
+  <img src="images/street_night_static.jpg" alt="">
+  <img src="images/room_dark.jpg" alt="">
+  <img src="images/room_dark_Masha_sit.jpg" alt="">
+  <img src="images/room_dark_Masha_look.jpg" alt="">
+  <img src="images/room_dark_close.jpg" alt="">
+  <img src="images/screamer.jpg" alt="">
+  <img src="images/room_twilight_soft_final.jpg" alt="">
+  <img src="images/room_twilight_soft_step1.jpg" alt="">
+  <img src="images/room_twilight_soft_Masha_look.jpg" alt="">
+  <img src="images/room_twilight_soft_close.jpg" alt="">
+  <img src="images/room_twilight_soft_smile.jpg" alt="">
+  <img src="images/room_twilight_soft_Anya_mind.jpg" alt="">
+  <img src="images/room_twilight_soft_hands.jpg" alt="">
+  <img src="images/room_twilight_soft_Anya_say.jpg" alt="">
+  <img src="images/room_twilight_soft_Masha_nod.jpg" alt="">
+  <img src="images/room_twilight_soft_final.jpg" alt="">
+  <img src="images/room_dark_close_Anya_step.jpg" alt="">
+  <img src="images/room_dark_close_Masha_grab.jpg" alt="">
+  <img src="images/room_dark_close_Anya_struggle.jpg" alt="">
+  <img src="images/room_dark_close_Masha_fear.jpg" alt="">
+  <img src="images/room_dark_close_Anya_mind.jpg" alt="">
+  <img src="images/room_dark_close_push.jpg" alt="">
+  <img src="images/room_dark_close_block.jpg" alt="">
+  <img src="images/room_dark_close_Anya_shock.jpg" alt="">
+  <img src="images/room_dark_red_final.jpg" alt="">
+</div>
+
+<!-- Hint flash -->
+<div id="hintFlash" class="hint-flash" aria-hidden="true"></div>
+
+<script>
+"use strict";
+
+/* ======== Переменные состояния ======== */
+const baseCps = 30;
+let speedMult = 1;
+let cps = baseCps * speedMult;
+let scriptIdx = 0;
+let typingTimer = null;
+let charPos = 0;
+let isPaused = false;
+let waitingForClick = false;
+
+/* ======== DOM ======== */
+const bg = document.getElementById('bg');
+const menu = document.getElementById('menu');
+const newGame = document.getElementById('newGame');
+const continueBtn = document.getElementById('continueBtn');
+const game = document.getElementById('game');
+const speakerEl = document.getElementById('speaker');
+const textEl = document.getElementById('text');
+const choicesEl = document.getElementById('choices');
+const screamer = document.getElementById('screamer');
+const hintFlash = document.getElementById('hintFlash');
+const endScreen = document.getElementById('endScreen');
+const endTitle = document.getElementById('endTitle');
+const endText = document.getElementById('endText');
+const backToMenu = document.getElementById('backToMenu');
+const replayBtn = document.getElementById('replay');
+
+const speedBtn = document.getElementById('speedBtn');
+const skipBtn = document.getElementById('skipBtn');
+const saveBtn = document.getElementById('saveBtn');
+const loadBtn = document.getElementById('loadBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+
+/* ======== Сценарий (точно как в твоём) ======== */
+const script = [
+  { type:'scene', bg:'images/PILA.jpg', autosave:'splash' },
+  { type:'text', speaker:null, text:'Это был обычный солнечный день.' },
+  { type:'text', speaker:null, text:'Коридор гудел от голосов, запах мела и кофе витал в воздухе.' },
+  { type:'text', speaker:'Аня', text:'Меня зовут Аня. Я стараюсь быть дружелюбной со всеми, хотя иногда устаю от людей.' },
+  { type:'text', speaker:null, text:'Сегодня всё казалось как обычно.' },
+
+  { type:'scene', bg:'images/school_corridor_close.jpg' },
+  { type:'text', speaker:'Аня', text:'Привет, Маш! Ты опять без завтрака?' , bgSwitch:'images/school_corridor_close_Masha_phone.jpg'},
+  { type:'text', speaker:'Маша', text:'Не голодна. Главное, чтобы ты не опоздала.', bgSwitch:'images/school_corridor_close_Masha_smile.jpg' },
+  { type:'text', speaker:'Аня', text:'Это ты меня не знаешь! Я бегаю быстрее всех в этой школе.', bgSwitch:'images/school_corridor_Ani_smile.jpg' },
+  { type:'text', speaker:'Маша', text:'Иногда мне кажется, ты спешишь не только в школу…', bgSwitch:'images/school_corridor_Masha_think.jpg' },
+  { type:'text', speaker:null, text:'Мы с Машей вместе с детства, но иногда она кажется мне чужой. Словно что-то в ней прячется.', bgSwitch:'images/school_corridor_softlight.jpg' },
+
+  { type:'scene', bg:'images/classroom_morning.jpg' },
+  { type:'text', speaker:null, text:'Сегодня контрольная... хотя, кого я обманываю, я готовилась.', bgSwitch:'images/classroom_Ani_sit.jpg' },
+  { type:'text', speaker:'Магамедик', text:'Привет, Аня! Ты готова к сегодняшней проверке?', bgSwitch:'images/classroom_Magamedik_enter.jpg' },
+  { type:'text', speaker:'Аня', text:'Угу, вроде бы. А ты?', bgSwitch:'images/classroom_Ani_surprise.jpg' },
+  { type:'text', speaker:'Магамедик', text:'Да, я тоже. Удачи нам!', bgSwitch:'images/classroom_Magamedik_smile.jpg' },
+  { type:'text', speaker:null, text:'Хорошо иметь друзей... даже если иногда они раздражают.', bgSwitch:'images/classroom_softblur.jpg' },
+
+  { type:'choice', choices:[
+    { text:'Посмотреть в окно', handler: ()=> { pushTexts([{type:'text', speaker:null, text:'Ты выглянула в окно. Над школой тихо светило солнце.', bgSwitch:'images/classroom_window.jpg'}]); } },
+    { text:'Начать рисовать на парте', handler: ()=> { pushTexts([{type:'text', speaker:null, text:'Ты начала чертить на парте маленькие цветы и котиков.', bgSwitch:'images/classroom_desk.jpg'}]); } },
+    { text:'Сказать Маше «ты милая сегодня»', handler: ()=> { pushTexts([{type:'text', speaker:'Аня', text:'Ты милая сегодня.', bgSwitch:'images/classroom_close.jpg'}]); } }
+  ]},
+
+  { type:'text', speaker:null, text:'Урок начинается...', bgSwitch:'images/classroom_teacher.jpg' },
+  { type:'scene', bg:'images/cafeteria_day.jpg' },
+  { type:'text', speaker:'Магамедик', text:'Ань, ты классно шутишь!', bgSwitch:'images/cafeteria_Ani_friends.jpg' },
+  { type:'text', speaker:'Аня', text:'Спасибо!' },
+  { type:'text', speaker:'Фара', text:'Вчера еле устояла на физкультуре.' },
+  { type:'text', speaker:'Диана', text:'А кто сегодня за контрольной?' },
+  { type:'text', speaker:null, text:'Она снова одна. Маша стоит в углу столовой и наблюдает.', bgSwitch:'images/cafeteria_Masha_far.jpg' },
+  { type:'text', speaker:null, text:'Ты думаешь: может, стоит подойти?..', bgSwitch:'images/cafeteria_softfade.jpg' },
+
+  { type:'scene', bg:'images/school_yard_day.jpg' },
+  { type:'text', speaker:null, text:'Мы играем в мяч, смеёмся и придумываем новые шутки.', bgSwitch:'images/school_yard_day.jpg' },
+  { type:'text', speaker:null, text:'Маша стоит в стороне и наблюдает. Я помахала ей — но она не ответила.', bgSwitch:'images/school_courtyard_Masha_far.jpg' },
+
+  { type:'scene', bg:'images/school_evening_corridor.jpg' },
+  { type:'text', speaker:'Маша', text:'Ты не забыла, кто с тобой был всегда?', bgSwitch:'images/school_evening_corridor_together.jpg' },
+  { type:'text', speaker:'Аня', text:'Конечно нет. Почему спрашиваешь?' },
+  { type:'text', speaker:'Маша', text:'Просто кажется, что ты уходишь куда-то… где мне нет места.' , bgSwitch:'images/school_evening_Anya_soft.jpg' },
+  { type:'text', speaker:null, text:'Я просто хочу общаться и с другими тоже.' },
+
+  { type:'scene', bg:'images/street_night.jpg' },
+  { type:'text', speaker:null, text:'Через неделю Магамедик не пришёл. Потом Диана. Потом Фара...', bgSwitch:'images/street_night_Anya_phone.jpg' },
+  { type:'text', speaker:null, text:'Телефон: «Абонент недоступен».', bgSwitch:'images/street_night_Anya_phone.jpg' },
+  { type:'text', speaker:null, text:'Сообщение от Маши: «Ты ведь не скучаешь без них?»', bgSwitch:'images/street_night_static.jpg' },
+  { type:'text', speaker:null, text:'Я не знаю, что думать.' },
+
+  { type:'scene', bg:'images/room_dark.jpg' },
+  { type:'text', speaker:'Аня', text:'Маш… ты знаешь, что происходит с друзьями?', bgSwitch:'images/room_dark_Masha_sit.jpg' },
+  { type:'text', speaker:'Маша', text:'Они просто ушли. А если ты решишь уйти — я больше никого не отпущу.', bgSwitch:'images/room_dark_Masha_look.jpg' },
+  { type:'text', speaker:'Аня', text:'Что ты хочешь сказать?' },
+  { type:'text', speaker:'Маша', text:'Я просто хотела, чтобы всё осталось, как раньше.', bgSwitch:'images/room_dark_close.jpg' },
+
+  { type:'screamer', duration:800 },
+
+  { type:'scene', bg:'images/room_pooa_soft_final.jpg', autosave:'beforeChoice' },
+  { type:'text', speaker:'Маша', text:'Так что, Аня... ты останешься?' },
+
+  { type:'choice', choices:[
+    { text:'Остаться с Машей', handler: ()=> gotoLabel('ending_acceptance') },
+    { text:'Уйти быстро и без обьяснений', handler: ()=> { if(Math.random()<0.5) gotoLabel('ending_escape_success'); else gotoLabel('ending_basement'); } },
+    { text:'Уйти поговорив ', handler: ()=> gotoLabel('ending_basement') }
+  ]},
+
+  { label:'ending_acceptance', type:'scene', bg:'images/room_twilight_soft_final.jpg' },
+  { type:'text', speaker:null, text:'Аня делает шаг к Маше.', bgSwitch:'images/room_twilight_soft_step1.jpg' },
+  { type:'text', speaker:'Аня', text:'Маш… Я не хочу ссориться. Я не хочу терять тебя.' },
+  { type:'text', speaker:null, text:'Маша медленно поднимает голову.', bgSwitch:'images/room_twilight_soft_Masha_look.jpg' },
+  { type:'text', speaker:'Маша', text:'Ты… остаёшься?..' },
+  { type:'text', speaker:null, text:'Аня садится рядом.', bgSwitch:'images/room_twilight_soft_close.jpg' },
+  { type:'text', speaker:'Аня', text:'Да. Мне страшно иногда, но… я всё равно с тобой.' },
+  { type:'text', speaker:null, text:'Маша мягко улыбается.', bgSwitch:'images/room_twilight_soft_smile.jpg' },
+  { type:'text', speaker:'Маша', text:'Я… постараюсь быть спокойнее. Я не хочу давить.' },
+  { type:'text', speaker:null, text:'Мысли Ани.', bgSwitch:'images/room_twilight_soft_Anya_mind.jpg' },
+  { type:'text', speaker:'Аня', text:'Она такая близкая. Слишком близкая… но тёплая. Я не знаю, правильно ли я делаю.' },
+  { type:'text', speaker:null, text:'Маша берёт Аню за руку.', bgSwitch:'images/room_twilight_soft_hands.jpg' },
+  { type:'text', speaker:'Маша', text:'Мне просто страшно. Ты была единственной, кто не бросал меня.' },
+  { type:'text', speaker:'Аня', text:'Я и не собираюсь. Но нужно доверие. Без контроля.', bgSwitch:'images/room_twilight_soft_Anya_say.jpg' },
+  { type:'text', speaker:null, text:'Маша кивает.', bgSwitch:'images/room_twilight_soft_Masha_nod.jpg' },
+  { type:'text', speaker:'Маша', text:'Хорошо… Давай попробуем ещё раз.' },
+  { type:'text', speaker:null, text:'Вы остались вместе. Спокойно, тихо, немного тревожно… но по-настоящему тепло.', bgSwitch:'images/room_twilight_soft_final.jpg' },
+  { type:'end', id:'acceptance', title:'КОНЦОВКА: ПРИНЯТИЕ', text:'Вы остались вместе. Спокойно, тихо, немного тревожно… но по-настоящему тепло.' },
+
+  { label:'ending_basement', type:'scene', bg:'images/room_dark_red_final.jpg' },
+  { type:'text', speaker:null, text:'Аня тянется к двери.', bgSwitch:'images/room_dark_close_Anya_step.jpg' },
+  { type:'text', speaker:'Маша', text:'Нет. Ты не понимаешь.', bgSwitch:'images/room_dark_close_Masha_grab.jpg' },
+  { type:'text', speaker:'Аня', text:'Отпусти! Ты мне больно!', bgSwitch:'images/room_dark_close_Anya_struggle.jpg' },
+  { type:'text', speaker:null, text:'Лицо Маши искажается.', bgSwitch:'images/room_dark_close_Masha_fear.jpg' },
+  { type:'text', speaker:null, text:'Она вцепилась, будто я последнее, что у неё осталось…', bgSwitch:'images/room_dark_close_Anya_mind.jpg' },
+  { type:'text', speaker:'Аня', text:'Это неправильно! Людей нельзя удерживать силой!', bgSwitch:'images/room_dark_close_push.jpg' },
+  { type:'text', speaker:'Маша', text:'Если уйдёшь — они тебя заберут. Они все уйдут от тебя. Так же, как от меня.', bgSwitch:'images/room_dark_close_block.jpg' },
+  { type:'text', speaker:null, text:'Ты осталась. Не по своей воле. Дверь закрыта. И никто больше не знает, что ты здесь.', bgSwitch:'images/room_dark_close_Anya_shock.jpg' },
+  { type:'end', id:'basement', title:'КОНЦОВКА: ПОДВАЛ', text:'Ты осталась. Не по своей воле. Дверь закрыта. И никто больше не знает, что ты здесь.' },
+
+  { label:'ending_escape_success', type:'scene', bg:'images/room_dark.jpg' },
+  { type:'text', speaker:null, text:'Рука скользит. Ручка срывается с Машиной руки. Дверь распахивается.', bgSwitch:'images/room_dark_close_Anya_step2.jpg' },
+  { type:'text', speaker:null, text:'Холодный воздух обрушивается на Аню, но он кажется свободой.' },
+  { type:'text', speaker:null, text:'Она не оглядывается. Она просто бежит.', bgSwitch:'images/ending_acceptance1_home.jpg' },
+  { type:'end', id:'escape', title:'КОНЦОВКА: ПОБЕГ (УДАЛСЯ)', text:'Она выбралась и побежала прочь. Свобода — холодная, но настоящая.' }
+];
+
+/* ======== Вспомогательная очередь для pushTexts (локальные добавления) ======== */
+let pushQueue = [];
+function pushTexts(arr){
+  // вставляем тексты сразу после текущего шага
+  script.splice(scriptIdx+1,0,...arr);
+}
+
+/* ======== Навигация по label ======== */
+function findLabel(label){
+  return script.findIndex(s => s.label === label);
+}
+function gotoLabel(label){
+  const idx = findLabel(label);
+  if(idx>=0){ scriptIdx = idx; renderStep(); }
+}
+
+/* ======== Сохранение/загрузка ======== */
+function saveSlot(key='save_slot_1'){
+  const state = { scriptIdx, speedMult };
+  localStorage.setItem(key, JSON.stringify(state));
+  flash('✓ Сохранено');
+}
+function loadSlot(key='save_slot_1'){
+  const raw = localStorage.getItem(key);
+  if(!raw){ flash('✗ Нет сохранения'); return; }
+  try{
+    const s = JSON.parse(raw);
+    scriptIdx = s.scriptIdx || 0;
+    speedMult = s.speedMult || 1;
+    cps = baseCps * speedMult;
+    flash('✓ Загружено');
+    renderStep();
+  }catch(e){ flash('✗ Ошибка загрузки'); }
+}
+
+/* ======== UI хелперы ======== */
+function flash(text){
+  hintFlash.textContent = text;
+  hintFlash.classList.add('show');
+  setTimeout(()=>hintFlash.classList.remove('show'),1400);
+}
+
+/* ======== Отображение фона с плавным переходом ======== */
+let currentBg = '';
+function setBg(src){
+  if(!src) return;
+  if(src === currentBg) return;
+  currentBg = src;
+  bg.style.backgroundImage = `url("${src}")`;
+  bg.style.filter = `brightness(${varOrDefault('--bg-filter',0.92)})`;
+}
+function varOrDefault(name,def){ try{ return getComputedStyle(document.documentElement).getPropertyValue(name)||def; }catch(e){return def;} }
+
+/* ======== Тайпинг ======== */
+function typeText(full, speaker=null){
+  clearInterval(typingTimer);
+  speakerEl.textContent = speaker || '';
+  textEl.textContent = '';
+  charPos = 0;
+  if(!full || full.length===0){ waitAdvance(); return; }
+  const interval = Math.max(4, Math.round(1000/(cps)));
+  typingTimer = setInterval(()=>{
+    charPos++;
+    textEl.textContent = full.slice(0,charPos);
+    if(charPos>=full.length){
+      clearInterval(typingTimer);
+      typingTimer = null;
+      waitAdvance();
+    }
+  }, interval);
+}
+
+/* ======== Ожидание клика (продолжение) ======== */
+function waitAdvance(){
+  if(waitingForClick) return;
+  waitingForClick = true;
+  function handler(e){
+    if(typingTimer){ // если печатает — досрочно показать весь текст
+      clearInterval(typingTimer); typingTimer=null;
+      // отобразим полный текущий текст
+      const step = script[scriptIdx];
+      if(step && step.text) textEl.textContent = step.text;
+      return;
+    }
+    waitingForClick = false;
+    document.removeEventListener('click', handler);
+    scriptIdx++;
+    renderStep();
+  }
+  document.addEventListener('click', handler);
+}
+
+/* ======== Основной рендер шага ======== */
+function renderStep(){
+  if(isPaused) return;
+  choicesEl.innerHTML = '';
+  if(scriptIdx<0) scriptIdx = 0;
+  if(scriptIdx>=script.length){
+    // конец
+    showEnd('---', '---');
+    return;
+  }
+  const step = script[scriptIdx];
+  if(!step){ showEnd('---','---'); return; }
+
+  // scene (смена фона)
+  if(step.type === 'scene'){
+    if(step.bg) setBg(step.bg);
+    if(step.autosave) saveSlot('autosave_'+step.autosave);
+    scriptIdx++;
+    // маленькая задержка для визуального фейда
+    setTimeout(renderStep, 180);
+    return;
+  }
+
+  // text
+  if(step.type === 'text'){
+    if(step.bgSwitch) setBg(step.bgSwitch);
+    typeText(step.text, step.speaker);
+    return;
+  }
+
+  // screamer
+  if(step.type === 'screamer'){
+    // показать скримера на duration
+    screamer.classList.add('show');
+    setTimeout(()=>{ screamer.classList.remove('show'); }, step.duration || 800);
+    scriptIdx++;
+    setTimeout(renderStep, (step.duration || 800)+120);
+    return;
+  }
+
+  // choice
+  if(step.type === 'choice'){
+    speakerEl.textContent = '';
+    textEl.textContent = '';
+    choicesEl.innerHTML = '';
+    waitingForClick = false;
+    step.choices.forEach((c, i)=>{
+      const btn = document.createElement('button');
+      btn.className = 'choice-btn';
+      btn.textContent = c.text;
+      btn.addEventListener('click',(ev)=>{
+        ev.stopPropagation();
+        // run handler
+        c.handler && c.handler();
+        // if choice not moved scriptIdx, advance
+        if(script[scriptIdx] === step) scriptIdx++;
+        renderStep();
+      });
+      choicesEl.appendChild(btn);
+    });
+    return;
+  }
+
+  // end node
+  if(step.type === 'end'){
+    // show end screen
+    showEnd(step.title || 'Концовка', step.text || '');
+    return;
+  }
+
+  // label passthrough
+  if(step.label){
+    scriptIdx++;
+    renderStep();
+    return;
+  }
+}
+
+/* ======== End screen ======== */
+function showEnd(title, txt){
+  endTitle.textContent = title;
+  endText.textContent = txt;
+  endScreen.classList.add('show');
+  game.style.display = 'none';
+}
+
+/* ======== Controls handlers ======== */
+newGame.addEventListener('click', ()=>{
+  menu.style.display = 'none';
+  startNewGame();
+});
+continueBtn.addEventListener('click', ()=>{
+  // load autosave splash if exists
+  const raw = localStorage.getItem('autosave_splash');
+  if(raw){ loadSlot('autosave_splash'); menu.style.display='none'; game.style.display='block'; } else { flash('Нет автосейва'); }
+});
+backToMenu.addEventListener('click', ()=>{
+  endScreen.classList.remove('show');
+  menu.style.display = 'flex';
+});
+replayBtn.addEventListener('click', ()=>{
+  endScreen.classList.remove('show');
+  startNewGame();
+});
+speedBtn.addEventListener('click', ()=>{
+  speedMult = (speedMult===1)?2:1;
+  cps = baseCps * speedMult;
+  speedBtn.textContent = (speedMult===1)?'x1':'x2';
+  flash('Скорость: x'+speedMult);
+});
+skipBtn.addEventListener('click', ()=>{
+  // если печатает, завершить; иначе быстро продвинуть до конца сцены или до следующего выбора/конца
+  if(typingTimer){ clearInterval(typingTimer); typingTimer=null; const step = script[scriptIdx]; if(step && step.text) textEl.textContent = step.text; return; }
+  // skip forward until next choice or end node
+  let i = scriptIdx+1;
+  while(i<script.length && script[i].type !== 'choice' && script[i].type !== 'end'){ i++; }
+  if(i<script.length){ scriptIdx = i; renderStep(); flash('Пропущено'); } else { scriptIdx = script.length; renderStep(); flash('Пропущено'); }
+});
+saveBtn.addEventListener('click', ()=> saveSlot('save_slot_1'));
+loadBtn.addEventListener('click', ()=> loadSlot('save_slot_1'));
+pauseBtn.addEventListener('click', togglePause);
+
+function togglePause(){
+  isPaused = !isPaused;
+  if(isPaused){ flash('Пауза'); } else { flash('Возобновлено'); renderStep(); }
+}
+
+/* ======== Keyboard ======== */
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') togglePause();
+  if(e.key === ' ') { e.preventDefault(); document.dispatchEvent(new MouseEvent('click')); }
+});
+
+/* ======== Start game ======== */
+function startNewGame(){
+  // initial screamer then begin
+  game.style.display = 'block';
+  scriptIdx = 0;
+  // show initial scene/transition
+  // find first scene entry to set bg quickly
+  const firstScene = script.find(s=>s.type==='scene');
+  if(firstScene && firstScene.bg) setBg(firstScene.bg);
+  // show screamer quickly for menu flair (0.8s) then start at index 1
+  screamer.classList.add('show');
+  setTimeout(()=>{ screamer.classList.remove('show'); scriptIdx = 1; renderStep(); }, 900);
+}
+
+/* ======== Flash helper ======== */
+function flash(msg){ hintFlash.textContent = msg; hintFlash.classList.add('show'); setTimeout(()=>hintFlash.classList.remove('show'),1400); }
+
+/* ======== Autosave on enter important nodes handled in script by autosave flags ======== */
+
+/* ======== Load autosave if exists on page open (non intrusive) ======== */
+window.addEventListener('load', ()=>{
+  // set default bg to PILA if present
+  bg.style.backgroundImage = 'url("images/PILA.jpg")';
+  bg.style.opacity = '1';
+  // small delay then show menu
+  setTimeout(()=>{ menu.style.display = 'flex'; }, 120);
+});
+
+</script>
+</body>
+</html>
